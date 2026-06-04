@@ -9,7 +9,7 @@ import {
   Users,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLogout } from "@/hooks/useAuth";
 import {
   Sidebar,
   SidebarContent,
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 
 const mainItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Sales", url: "/sales", icon: ShoppingCart },
   { title: "AI Recommendations", url: "/recommendations", icon: Brain },
@@ -35,12 +35,12 @@ const mainItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const location = useLocation();
+  const { logout } = useLogout();
 
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
-        <div className="p-4 flex items-center gap-3">
+        <div className={`flex items-center gap-3 transition-all duration-200 ${collapsed ? 'justify-center p-2' : 'p-4'}`}>
           <div className="h-9 w-9 rounded-lg gradient-primary flex items-center justify-center flex-shrink-0">
             <Brain className="h-5 w-5 text-primary-foreground" />
           </div>
@@ -61,15 +61,15 @@ export function AppSidebar() {
               {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      end={item.url === "/"}
-                      className="hover:bg-accent/60"
-                      activeClassName="bg-primary/10 text-primary font-medium"
-                    >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
+                      <NavLink
+                        to={item.url}
+                        end={false}
+                        className="relative flex items-center w-full transition-all duration-200 group text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        activeClassName="bg-primary/10 text-primary font-medium shadow-sm ring-1 ring-primary/20"
+                      >
+                        <item.icon className="mr-3 h-[18px] w-[18px] transition-transform group-hover:scale-110" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -82,18 +82,26 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <NavLink to="/settings" className="hover:bg-accent/60" activeClassName="bg-primary/10 text-primary">
-                <Settings className="mr-2 h-4 w-4" />
+              <NavLink 
+                to="/settings" 
+                className="relative flex items-center w-full transition-all duration-200 group text-muted-foreground hover:text-foreground hover:bg-secondary" 
+                activeClassName="bg-primary/10 text-primary font-medium shadow-sm ring-1 ring-primary/20"
+              >
+                <Settings className="mr-3 h-[18px] w-[18px] transition-transform group-hover:rotate-45" />
                 {!collapsed && <span>Settings</span>}
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <NavLink to="/login" className="hover:bg-accent/60 text-destructive" activeClassName="">
-                <LogOut className="mr-2 h-4 w-4" />
+            <SidebarMenuButton
+              asChild
+              onClick={logout}
+              className="relative flex items-center w-full transition-all duration-200 group text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+            >
+              <div>
+                <LogOut className="mr-3 h-[18px] w-[18px] transition-transform group-hover:-translate-x-1" />
                 {!collapsed && <span>Logout</span>}
-              </NavLink>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

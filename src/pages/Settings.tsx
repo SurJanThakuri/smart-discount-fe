@@ -1,46 +1,100 @@
 import { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import { User, Bell, Shield, Palette } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { User, Shield, Palette, Lock } from "lucide-react";
+import { useCurrentUser, useUpdateProfile, useChangePassword, useLogoutAll } from "@/hooks/useAuth";
+
+interface ProfileData {
+  fullName: string;
+  email: string;
+  shopName: string;
+  contactNumber: string;
+}
+
+interface ChangePasswordData {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
 
 export default function Settings() {
   const { theme, setTheme } = useTheme();
-  const [profile, setProfile] = useState({
-    name: "Shop Owner",
-    email: "owner@shop.com",
-    shopName: "My Retail Store",
-    phone: "+1 234 567 8900",
-  });
-  const [notifications, setNotifications] = useState({
-    email: true,
-    push: true,
-    lowStock: true,
-    recommendations: true,
+  const currentUser = useCurrentUser();
+  const { mutate: saveProfile, isPending: isSaving } = useUpdateProfile();
+  const { mutate: changePwd, isPending: isChangingPwd } = useChangePassword();
+  const { logoutAll } = useLogoutAll();
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [pwdDialogOpen, setPwdDialogOpen] = useState(false);
+
+  const profileForm = useForm<ProfileData>({
+    defaultValues: {
+      fullName: currentUser?.fullName ?? "",
+      email: currentUser?.email ?? "",
+      shopName: currentUser?.shopName ?? "",
+      contactNumber: currentUser?.contactNumber ?? "",
+    },
   });
 
-  const handleSaveProfile = () => {
-    toast.success("Profile updated successfully");
+  const pwdForm = useForm<ChangePasswordData>();
+
+  const handleSaveProfile = (data: ProfileData) => {
+    saveProfile(data, {
+      onSuccess: () => {
+        setIsEditingProfile(false);
+      },
+    });
+  };
+
+  const handleChangePassword = (data: ChangePasswordData) => {
+    if (data.newPassword !== data.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    changePwd(
+      { currentPassword: data.currentPassword, newPassword: data.newPassword },
+      {
+        onSuccess: () => {
+          setPwdDialogOpen(false);
+          pwdForm.reset();
+        },
+      },
+    );
   };
 
   return (
     <DashboardLayout title="Settings">
       <div className="max-w-3xl space-y-6">
-        {/* Profile Section */}
-        <Card>
+        <Card className="shadow-sm border-border/50">
           <CardHeader>
             <div className="flex items-center gap-2">
               <User className="h-5 w-5 text-primary" />
               <div>
                 <CardTitle>Profile</CardTitle>
-                <CardDescription>Manage your personal information</CardDescription>
+                <CardDescription>
+                  Manage your personal information
+                </CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -48,113 +102,130 @@ export default function Settings() {
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
                 <AvatarFallback className="gradient-primary text-primary-foreground text-lg font-semibold">
-                  {profile.name.split(" ").map(n => n[0]).join("")}
+                  {(currentUser?.fullName ?? "SO")
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")}
                 </AvatarFallback>
               </Avatar>
-              <Button variant="outline" size="sm">Change Avatar</Button>
             </div>
             <Separator />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Full Name</Label>
-                <Input
-                  value={profile.name}
-                  onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                  className="bg-secondary border-0"
-                />
+            {isEditingProfile ? (
+              <form
+                onSubmit={profileForm.handleSubmit(handleSaveProfile)}
+                className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <Input id="fullName" {...profileForm.register("fullName")} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" {...profileForm.register("email")} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="contactNumber">Phone</Label>
+                  <Input id="contactNumber" {...profileForm.register("contactNumber")} />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="shopName">Shop Name</Label>
+                  <Input id="shopName" {...profileForm.register("shopName")} />
+                </div>
+                <div className="flex gap-2 sm:col-span-2">
+                  <Button
+                    type="submit"
+                    className="gradient-primary border-0 text-primary-foreground"
+                    disabled={isSaving}>
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsEditingProfile(false);
+                      profileForm.reset({
+                        fullName: currentUser?.fullName ?? "",
+                        email: currentUser?.email ?? "",
+                        shopName: currentUser?.shopName ?? "",
+                        contactNumber: currentUser?.contactNumber ?? "",
+                      });
+                    }}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Full Name</Label>
+                  <p className="text-sm text-foreground">
+                    {currentUser?.fullName ?? "N/A"}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <p className="text-sm text-foreground">
+                    {currentUser?.email ?? "N/A"}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <p className="text-sm text-foreground">
+                    {currentUser?.contactNumber ?? "N/A"}
+                  </p>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Shop Name</Label>
+                  <p className="text-sm text-foreground">
+                    {currentUser?.shopName ?? "N/A"}
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    setIsEditingProfile(true);
+                    profileForm.reset({
+                      fullName: currentUser?.fullName ?? "",
+                      email: currentUser?.email ?? "",
+                      shopName: currentUser?.shopName ?? "",
+                      contactNumber: currentUser?.contactNumber ?? "",
+                    });
+                  }}
+                  className="gradient-primary border-0 text-primary-foreground">
+                  Edit Profile
+                </Button>
               </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input
-                  value={profile.email}
-                  onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                  className="bg-secondary border-0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Shop Name</Label>
-                <Input
-                  value={profile.shopName}
-                  onChange={(e) => setProfile({ ...profile, shopName: e.target.value })}
-                  className="bg-secondary border-0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input
-                  value={profile.phone}
-                  onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                  className="bg-secondary border-0"
-                />
-              </div>
-            </div>
-            <Button className="gradient-primary border-0 text-primary-foreground" onClick={handleSaveProfile}>
-              Save Changes
-            </Button>
+            )}
           </CardContent>
         </Card>
 
-        {/* Appearance */}
-        <Card>
+        <Card className="shadow-sm border-border/50">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5 text-primary" />
               <div>
                 <CardTitle>Appearance</CardTitle>
-                <CardDescription>Customize the look and feel</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Dark Mode</p>
-                <p className="text-xs text-muted-foreground">Switch between light and dark themes</p>
-              </div>
-              <Switch
-                checked={theme === "dark"}
-                onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Notifications */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-primary" />
-              <div>
-                <CardTitle>Notifications</CardTitle>
-                <CardDescription>Configure your alert preferences</CardDescription>
+                <CardDescription>Customize how the app looks</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {[
-              { key: "email" as const, label: "Email Notifications", desc: "Receive updates via email" },
-              { key: "push" as const, label: "Push Notifications", desc: "Browser push alerts" },
-              { key: "lowStock" as const, label: "Low Stock Alerts", desc: "Get notified when items run low" },
-              { key: "recommendations" as const, label: "AI Recommendations", desc: "New discount suggestions" },
-            ].map((item) => (
-              <div key={item.key} className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-foreground">{item.label}</p>
-                  <p className="text-xs text-muted-foreground">{item.desc}</p>
-                </div>
-                <Switch
-                  checked={notifications[item.key]}
-                  onCheckedChange={(checked) =>
-                    setNotifications({ ...notifications, [item.key]: checked })
-                  }
-                />
-              </div>
-            ))}
+            <div>
+              <Label htmlFor="theme" className="mb-2 block">
+                Theme
+              </Label>
+              <select
+                id="theme"
+                value={theme || "system"}
+                onChange={(e) => setTheme(e.target.value)}
+                className="w-full px-3 py-2 rounded-md bg-secondary border-0 text-sm">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="system">System</option>
+              </select>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Security */}
-        <Card>
+        <Card className="shadow-sm border-border/50">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
@@ -165,23 +236,54 @@ export default function Settings() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Current Password</Label>
-              <Input type="password" placeholder="••••••••" className="bg-secondary border-0" />
+            <Dialog open={pwdDialogOpen} onOpenChange={setPwdDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="w-full">
+                  <Lock className="h-4 w-4 mr-2" /> Change Password
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Change Password</DialogTitle>
+                </DialogHeader>
+                <form
+                  onSubmit={pwdForm.handleSubmit(handleChangePassword)}
+                  className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <PasswordInput
+                      id="currentPassword"
+                      {...pwdForm.register("currentPassword", { required: true })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">New Password</Label>
+                    <PasswordInput
+                      id="newPassword"
+                      {...pwdForm.register("newPassword", { required: true, minLength: 8 })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <PasswordInput
+                      id="confirmPassword"
+                      {...pwdForm.register("confirmPassword", { required: true })}
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    className="gradient-primary border-0 text-primary-foreground"
+                    disabled={isChangingPwd}>
+                    {isChangingPwd ? "Updating..." : "Update Password"}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+            <div className="pt-2 border-t">
+              <Button variant="destructive" className="w-full" onClick={logoutAll}>
+                Logout All Sessions
+              </Button>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>New Password</Label>
-                <Input type="password" placeholder="••••••••" className="bg-secondary border-0" />
-              </div>
-              <div className="space-y-2">
-                <Label>Confirm Password</Label>
-                <Input type="password" placeholder="••••••••" className="bg-secondary border-0" />
-              </div>
-            </div>
-            <Button variant="outline" onClick={() => toast.success("Password updated")}>
-              Update Password
-            </Button>
           </CardContent>
         </Card>
       </div>

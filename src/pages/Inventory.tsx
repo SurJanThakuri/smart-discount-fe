@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, Search, Edit, Trash2, Filter, AlertTriangle, RefreshCw } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Filter, AlertTriangle, RefreshCw, Sparkles } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,8 @@ import {
   useDeleteProduct,
 } from "@/hooks/useProducts";
 import { useAllCategories, useCreateCategory, useDeleteCategory } from "@/hooks/useCategories";
+import { useAllSales } from "@/hooks/useSales";
+import { useDiscountPredictions } from "@/hooks/useDiscounts";
 import type { CreateProductRequest, UpdateProductRequest } from "@/types/index";
 
 const container: any = {
@@ -67,11 +69,20 @@ export default function Inventory() {
 
   const { data: products, isLoading: productsLoading, isError: productsError, refetch: refetchProducts } = useAllProducts(search);
   const { data: categories, isLoading: categoriesLoading } = useAllCategories();
+  const { data: sales } = useAllSales();
   const { mutate: createProduct, isPending: createLoading } = useCreateProduct();
   const { mutate: updateProduct, isPending: updateLoading } = useUpdateProduct();
   const { mutate: deleteProduct } = useDeleteProduct();
   const { mutate: createCategory } = useCreateCategory();
   const { mutate: deleteCategory } = useDeleteCategory();
+
+  const { recommendations: discountRecs } = useDiscountPredictions({
+    products: products ?? [],
+    sales: sales ?? [],
+    enabled: !!products && !!sales,
+  });
+
+  const discountMap = new Map(discountRecs.map((r) => [r.productId, r]));
 
   const form = useForm<CreateProductRequest>({ resolver: zodResolver(productSchema) });
   const editForm = useForm<UpdateProductRequest>({ resolver: zodResolver(productSchema) });
@@ -287,6 +298,7 @@ export default function Inventory() {
                     <TableHead className="text-right">Price</TableHead>
                     <TableHead className="text-right">Stock</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-center">Discount</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -294,7 +306,7 @@ export default function Inventory() {
                   {productsLoading ? (
                     [...Array(5)].map((_, i) => (
                       <TableRow key={i}>
-                        {[...Array(6)].map((_, j) => (
+                        {[...Array(7)].map((_, j) => (
                           <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                         ))}
                       </TableRow>
@@ -313,6 +325,18 @@ export default function Inventory() {
                             {getStockColor(Number(product.stockQty))}
                           </Badge>
                         </TableCell>
+                        <TableCell className="text-center">
+                          {(() => {
+                            const rec = discountMap.get(product.id);
+                            if (!rec) return <span className="text-xs text-muted-foreground">—</span>;
+                            return (
+                              <Badge variant="secondary" className="bg-success/10 text-success gap-1 text-xs border-0">
+                                <Sparkles className="h-3 w-3" />
+                                {rec.discount}%
+                              </Badge>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditProduct(product.id)}>
@@ -327,7 +351,7 @@ export default function Inventory() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                         {search || categoryFilter !== "all"
                           ? "No products match your filters"
                           : "No products yet. Click 'Add Product' to get started."}

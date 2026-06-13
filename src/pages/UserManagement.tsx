@@ -90,6 +90,7 @@ export default function UserManagement() {
   const { mutate: updateStatus } = useUpdateUserStatus();
 
   const users = shopData?.users ?? [];
+  const summary = shopData?.summary;
 
   const filtered = users.filter(
     (u) =>
@@ -151,6 +152,28 @@ export default function UserManagement() {
 
   return (
     <DashboardLayout title="User Management">
+      {summary && (
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <Card className="shadow-sm border-border/50">
+            <CardContent className="p-4 text-center">
+              <p className="text-2xl font-bold text-foreground">{summary.totalUsers}</p>
+              <p className="text-xs text-muted-foreground">Total Users</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-border/50">
+            <CardContent className="p-4 text-center">
+              <p className="text-2xl font-bold text-success">{summary.totalActiveUsers}</p>
+              <p className="text-xs text-muted-foreground">Active</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-border/50">
+            <CardContent className="p-4 text-center">
+              <p className="text-2xl font-bold text-primary">{summary.totalAdminUsers}</p>
+              <p className="text-xs text-muted-foreground">Admins</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       <Card className="shadow-sm border-border/50">
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

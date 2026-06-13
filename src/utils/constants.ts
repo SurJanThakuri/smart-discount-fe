@@ -66,4 +66,9 @@ export const API_ENDPOINTS = {
   USERS_DETAIL: (id: string) => `/user/${id}`,
   USERS_UPDATE: (id: string) => `/user/${id}`,
   USERS_DELETE: (id: string) => `/user/${id}`,
+
+  // ML / Discounts
+  ML_PREDICT: "/ml/predict",
+  ML_HEALTH: "/ml/health",
+  ML_RELOAD: "/ml/reload",
 };

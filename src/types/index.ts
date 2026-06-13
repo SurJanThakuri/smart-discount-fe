@@ -130,3 +130,45 @@ export interface ApiResponse<T = any> {
   statusCode?: number;
   error?: string;
 }
+
+export interface DiscountPrediction {
+  product_id: string;
+  recommended_discount: number;
+  confidence: number;
+  predicted_sales_lift: number;
+  revenue_impact: number;
+  slow_risk_probability: number;
+}
+
+export interface PredictDiscountRequest {
+  products: {
+    product_id: string;
+    features: {
+      sales_velocity_7d: number;
+      sales_velocity_30d: number;
+      days_since_last_sale: number;
+      profit_margin: number;
+      day_of_week: number;
+      month: number;
+      quarter: number;
+      is_weekend: number;
+      current_stock: number;
+    };
+  }[];
+}
+
+export interface DiscountRecommendation {
+  productId: string;
+  product: string;
+  discount: number;
+  revenueIncrease: string;
+  confidence: number;
+  reason: string;
+  priority: "high" | "medium" | "low";
+  salesLift: number;
+  slowRisk: number;
+}
+
+export interface MLHealth {
+  status: string;
+}

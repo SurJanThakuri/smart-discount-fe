@@ -6,12 +6,14 @@ import {
   Percent,
   Brain,
   RefreshCw,
+  Cpu,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { StatCard } from "@/components/StatCard";
 import { RecommendationCard } from "@/components/RecommendationCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   LineChart,
   Line,
@@ -25,6 +27,7 @@ import {
 } from "recharts";
 import { useAllSales } from "@/hooks/useSales";
 import { useAllProducts } from "@/hooks/useProducts";
+import { useDiscountPredictions } from "@/hooks/useDiscounts";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const container: any = {
@@ -43,6 +46,12 @@ export default function Dashboard() {
 
   const salesList = sales ?? [];
   const productsList = products ?? [];
+
+  const { recommendations, isMlDriven } = useDiscountPredictions({
+    products: productsList,
+    sales: salesList,
+    enabled: !!products && !!sales,
+  });
 
   const totalRevenue = salesList.reduce((acc, sale) => acc + Number(sale.amount), 0);
   const totalProducts = productsList.length;
@@ -66,19 +75,7 @@ export default function Dashboard() {
     }))
     .sort((a, b) => b.revenue - a.revenue);
 
-  const recommendations = productsList.slice(0, 4).map((product, idx) => ({
-    product: product.name,
-    discount: [15, 10, 20, 8][idx],
-    revenueIncrease: ["+23%", "+18%", "+31%", "+12%"][idx],
-    confidence: [92, 87, 78, 85][idx],
-    reason: [
-      "High stock, declining sales trend",
-      "Competitor pricing pressure",
-      "Slow-moving, near expiry",
-      "Seasonal demand opportunity",
-    ][idx],
-    priority: (["high", "medium", "high", "low"] as const)[idx],
-  }));
+  const dashboardRecommendations = recommendations.slice(0, 4);
 
   const isLoading = salesLoading || productsLoading;
   const isError = salesError || productsError;
@@ -131,7 +128,7 @@ export default function Dashboard() {
               <StatCard
                 icon={Percent}
                 title="Active Discounts"
-                value={recommendations.length.toString()}
+                value={dashboardRecommendations.length.toString()}
                 change="AI-suggested discounts"
                 changeType="neutral"
               />
@@ -192,20 +189,31 @@ export default function Dashboard() {
         </motion.div>
 
         <motion.div variants={item}>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-              <Brain className="h-4 w-4 text-primary-foreground" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                <Brain className="h-4 w-4 text-primary-foreground" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-foreground">AI Recommendations</h3>
+                <p className="text-xs text-muted-foreground">Based on sales trends and stock levels</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-base font-semibold text-foreground">AI Recommendations</h3>
-              <p className="text-xs text-muted-foreground">Based on sales trends and stock levels</p>
-            </div>
+            {isMlDriven ? (
+              <Badge variant="secondary" className="bg-success/10 text-success gap-1">
+                <Cpu className="h-3 w-3" /> ML Engine
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="bg-warning/10 text-warning gap-1">
+                <Brain className="h-3 w-3" /> Heuristic
+              </Badge>
+            )}
           </div>
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
             </div>
-          ) : recommendations.length === 0 ? (
+          ) : dashboardRecommendations.length === 0 ? (
             <Card className="shadow-card border-0">
               <CardContent className="p-6 text-center text-muted-foreground text-sm">
                 Add products to get AI-powered discount recommendations.
@@ -213,8 +221,16 @@ export default function Dashboard() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {recommendations.map((rec) => (
-                <RecommendationCard key={rec.product} {...rec} />
+              {dashboardRecommendations.map((rec) => (
+                <RecommendationCard
+                  key={rec.productId}
+                  product={rec.product}
+                  discount={rec.discount}
+                  revenueIncrease={rec.revenueIncrease}
+                  confidence={rec.confidence}
+                  reason={rec.reason}
+                  priority={rec.priority}
+                />
               ))}
             </div>
           )}

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Brain, Sparkles, TrendingUp, Zap, AlertTriangle, RefreshCw } from "lucide-react";
+import { Brain, Sparkles, TrendingUp, Zap, AlertTriangle, RefreshCw, Cpu } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useAllProducts } from "@/hooks/useProducts";
 import { useAllSales } from "@/hooks/useSales";
+import { useDiscountPredictions } from "@/hooks/useDiscounts";
 
 const container: any = {
   hidden: {}, show: { transition: { staggerChildren: 0.06 } },
@@ -17,21 +18,10 @@ const item: any = {
   hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
 };
 
-interface Recommendation {
-  productId: string;
-  product: string;
-  discount: number;
-  salesCount: number;
-  stockQty: number;
-  confidence: number;
-  tag: "high" | "medium" | "slow-moving";
-  reason: string;
-}
-
-const tagConfig: Record<string, { label: string; className: string }> = {
+const priorityConfig: Record<string, { label: string; className: string }> = {
   high: { label: "High Priority", className: "bg-destructive/10 text-destructive" },
   medium: { label: "Medium Priority", className: "bg-warning/10 text-warning" },
-  "slow-moving": { label: "Slow Moving", className: "bg-info/10 text-info" },
+  low: { label: "Low Priority", className: "bg-info/10 text-info" },
 };
 
 export default function Recommendations() {
@@ -41,36 +31,16 @@ export default function Recommendations() {
   const productsList = products ?? [];
   const salesList = sales ?? [];
 
-  const recommendations: Recommendation[] = productsList
-    .map((product) => {
-      const productSales = salesList.filter((s) => s.productId === product.id);
-      const salesCount = productSales.length;
-      const stockQty = Number(product.stockQty);
-      const isLowStock = stockQty < 10;
-      const hasLowSalesVelocity = salesCount < 3;
+  const { recommendations, isLoading: mlLoading, isMlDriven } = useDiscountPredictions({
+    products: productsList,
+    sales: salesList,
+    enabled: !!products && !!sales,
+  });
 
-      const discount = hasLowSalesVelocity ? 20 : isLowStock ? 15 : 10;
-      const confidence = Math.min(95, Math.max(65, 90 - salesCount * 5 + (hasLowSalesVelocity ? 10 : 0)));
-
-      let tag: "high" | "medium" | "slow-moving" = "medium";
-      let reason = "Stock level optimization needed";
-
-      if (stockQty > 20 && hasLowSalesVelocity) {
-        tag = "high";
-        reason = "High stock, declining sales trend";
-      } else if (hasLowSalesVelocity) {
-        tag = "slow-moving";
-        reason = "Slow-moving product, price reduction recommended";
-      }
-
-      return { productId: product.id, product: product.name, discount, salesCount, stockQty, confidence, tag, reason };
-    })
-    .slice(0, 6);
-
-  const isLoading = productsLoading || salesLoading;
+  const isLoading = productsLoading || salesLoading || mlLoading;
   const isError = productsError || salesError;
 
-  const handleApply = (rec: Recommendation) => {
+  const handleApply = (rec: { product: string; discount: number }) => {
     toast.success(`Applied ${rec.discount}% discount to "${rec.product}"`);
   };
 
@@ -94,16 +64,23 @@ export default function Recommendations() {
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
         <motion.div variants={item}>
           <Card className="shadow-sm border-border/50 gradient-hero mb-6">
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
-                <Brain className="h-6 w-6 text-primary-foreground" />
+            <CardContent className="p-6 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
+                  <Brain className="h-6 w-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-primary-foreground">AI-Powered Insights</h3>
+                  <p className="text-sm text-primary-foreground/80">
+                    {recommendations.length} recommendations generated based on your sales patterns and stock levels.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-primary-foreground">AI-Powered Insights</h3>
-                <p className="text-sm text-primary-foreground/80">
-                  {recommendations.length} recommendations generated based on your sales patterns and stock levels.
-                </p>
-              </div>
+              {isMlDriven ? (
+                <Badge variant="secondary" className="bg-success/10 text-success gap-1 border-0">
+                  <Cpu className="h-3 w-3" /> ML Engine
+                </Badge>
+              ) : null}
             </CardContent>
           </Card>
         </motion.div>
@@ -124,8 +101,8 @@ export default function Recommendations() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <h4 className="font-semibold text-foreground">{rec.product}</h4>
-                          <Badge variant="secondary" className={tagConfig[rec.tag].className}>
-                            {tagConfig[rec.tag].label}
+                          <Badge variant="secondary" className={priorityConfig[rec.priority]?.className ?? ""}>
+                            {priorityConfig[rec.priority]?.label ?? rec.priority}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground flex items-center gap-1">
@@ -140,13 +117,9 @@ export default function Recommendations() {
                         </div>
                         <div className="text-center">
                           <p className="text-xl font-bold text-success flex items-center gap-0.5">
-                            <TrendingUp className="h-4 w-4" /> {rec.salesCount}x
+                            <TrendingUp className="h-4 w-4" /> {rec.salesLift.toFixed(1)}x
                           </p>
-                          <p className="text-[10px] text-muted-foreground">Sales Count</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xl font-bold text-foreground">{rec.stockQty}</p>
-                          <p className="text-[10px] text-muted-foreground">In Stock</p>
+                          <p className="text-[10px] text-muted-foreground">Sales Lift</p>
                         </div>
                         <div className="text-center w-20">
                           <p className="text-sm font-semibold text-foreground mb-1">{rec.confidence}%</p>

@@ -23,6 +23,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAllSales } from "@/hooks/useSales";
 import { useAllProducts } from "@/hooks/useProducts";
+import { useDiscountPredictions } from "@/hooks/useDiscounts";
 
 const container: any = {
   hidden: {}, show: { transition: { staggerChildren: 0.06 } },
@@ -45,6 +46,12 @@ export default function Analytics() {
 
   const salesList = sales ?? [];
   const productsList = products ?? [];
+
+  const { recommendations } = useDiscountPredictions({
+    products: productsList,
+    sales: salesList,
+    enabled: !!products && !!sales,
+  });
 
   // Group sales by date to build proper weekly/monthly aggregates
   const salesByDate = new Map<string, number>();
@@ -105,14 +112,15 @@ export default function Analytics() {
     .sort((a, b) => b.daysSinceLastSale - a.daysSinceLastSale)
     .slice(0, 4);
 
-  // Before/after discount impact simulation based on real sales data
-  const beforeAfter = topProducts.slice(0, 4).map((p) => {
-    const product = productsList.find((pr) => pr.name === p.name);
-    const baseRevenue = p.sales * (product ? Number(product.price) : 100);
+  // ML-driven discount impact
+  const beforeAfter = recommendations.slice(0, 4).map((rec) => {
+    const product = productsList.find((p) => p.id === rec.productId);
+    const baseRevenue = product ? Number(product.price) * 10 : 1000;
+    const impact = rec.revenueIncrease ? parseFloat(rec.revenueIncrease) : 10;
     return {
-      product: p.name.length > 8 ? p.name.slice(0, 8) : p.name,
-      before: Math.floor(baseRevenue * 0.8),
-      after: Math.floor(baseRevenue * 1.1),
+      product: rec.product.length > 8 ? rec.product.slice(0, 8) : rec.product,
+      before: Math.floor(baseRevenue),
+      after: Math.floor(baseRevenue * (1 + impact / 100)),
     };
   });
 

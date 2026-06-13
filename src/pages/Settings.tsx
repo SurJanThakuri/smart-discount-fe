@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import {
   Card,
@@ -20,11 +19,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
-import { User, Shield, Palette, Lock } from "lucide-react";
+import { User, Shield, Palette, Lock, Cpu, RefreshCw, CheckCircle, XCircle } from "lucide-react";
 import { useCurrentUser, useUpdateProfile, useChangePassword, useLogoutAll } from "@/hooks/useAuth";
+import { fetchMLHealth, reloadMLModels } from "@/api/discounts";
 
 interface ProfileData {
   fullName: string;
@@ -47,6 +48,9 @@ export default function Settings() {
   const { logoutAll } = useLogoutAll();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [pwdDialogOpen, setPwdDialogOpen] = useState(false);
+  const [mlStatus, setMlStatus] = useState<{ status: string } | null>(null);
+  const [mlChecking, setMlChecking] = useState(false);
+  const [mlReloading, setMlReloading] = useState(false);
 
   const profileForm = useForm<ProfileData>({
     defaultValues: {
@@ -81,6 +85,31 @@ export default function Settings() {
         },
       },
     );
+  };
+
+  const checkMLHealth = async () => {
+    setMlChecking(true);
+    try {
+      const result = await fetchMLHealth();
+      setMlStatus(result);
+    } catch {
+      setMlStatus({ status: "unreachable" });
+    } finally {
+      setMlChecking(false);
+    }
+  };
+
+  const handleReloadML = async () => {
+    setMlReloading(true);
+    try {
+      const result = await reloadMLModels();
+      toast.success(`ML models reloaded: ${result.status}`);
+      await checkMLHealth();
+    } catch {
+      toast.error("Failed to reload ML models");
+    } finally {
+      setMlReloading(false);
+    }
   };
 
   return (
@@ -221,6 +250,47 @@ export default function Settings() {
                 <option value="dark">Dark</option>
                 <option value="system">System</option>
               </select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-border/50">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Cpu className="h-5 w-5 text-primary" />
+              <div>
+                <CardTitle>ML Service</CardTitle>
+                <CardDescription>AI recommendation engine status</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {mlStatus === null ? (
+                  <span className="text-sm text-muted-foreground">Not checked</span>
+                ) : mlStatus.status === "unreachable" ? (
+                  <>
+                    <XCircle className="h-4 w-4 text-destructive" />
+                    <span className="text-sm text-destructive">Offline</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 text-success" />
+                    <span className="text-sm text-success">{mlStatus.status}</span>
+                  </>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={checkMLHealth} disabled={mlChecking}>
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1 ${mlChecking ? "animate-spin" : ""}`} />
+                  {mlChecking ? "Checking..." : "Check Health"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleReloadML} disabled={mlReloading || mlStatus?.status === "unreachable"}>
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1 ${mlReloading ? "animate-spin" : ""}`} />
+                  {mlReloading ? "Reloading..." : "Reload Models"}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
